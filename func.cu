@@ -46,9 +46,10 @@ void box_filter(const unsigned char* __restrict__ inputChannel,
 
     if (thread_2D_pos.x >= numCols || thread_2D_pos.y >= numRows)
         return;
-  // NOTA: Que un thread tenga una posición correcta en 2D no quiere decir que al aplicar el filtro
+  // NOTA: Que un thread tenga una posiciÃ³n correcta en 2D no quiere decir que al aplicar el filtro
   // los valores de sus vecinos sean correctos, ya que pueden salirse de la imagen.
     
+    // Filtro interpretando los bordes como pÃ­xeles negros
     const int offset = filterWidth / 2;
 
     float outputValue;
@@ -73,6 +74,8 @@ void box_filter(const unsigned char* __restrict__ inputChannel,
     }
     outputChannel[thread_1D_pos] = outputValue;
     
+    // Filtro evitando los bordes
+    // Si el vecino cuadra fuera de la imagen no se aplica
     /*if (thread_2D_pos.x < offset || thread_2D_pos.x >= numCols - offset || 
         thread_2D_pos.y < offset || thread_2D_pos.y >= numRows - offset)
         outputChannel[thread_1D_pos] = inputChannel[thread_1D_pos];
@@ -112,11 +115,7 @@ void separateChannels(const uchar4* __restrict__ inputImageRGBA,
   // TODO: 
   // NOTA: Cuidado al acceder a memoria que esta fuera de los limites de la imagen
   //
-  // if ( absolute_image_position_x >= numCols ||
-  //      absolute_image_position_y >= numRows )
-  // {
-  //     return;
-  // }
+
     const int2 thread_2D_pos = make_int2(blockIdx.x * blockDim.x + threadIdx.x,
         blockIdx.y * blockDim.y + threadIdx.y);
 
@@ -185,14 +184,14 @@ void allocateMemoryAndCopyToGPU(const size_t numRowsImage, const size_t numColsI
 
 void create_filter(float **h_filter, int *filterWidth){
 
-  const int KernelWidth = 5; //OJO CON EL TAMAÑO DEL FILTRO//
+  const int KernelWidth = 5; //OJO CON EL TAMAÃ‘O DEL FILTRO//
   *filterWidth = KernelWidth;
 
   //create and fill the filter we will convolve with
   *h_filter = new float[KernelWidth * KernelWidth];
   
   
-  //Filtro gaussiano: blur
+  ////Filtro gaussiano: blur
   //const float KernelSigma = 2.;
 
   //float filterSum = 0.f; //for normalization
@@ -225,30 +224,30 @@ void create_filter(float **h_filter, int *filterWidth){
   
 
   //TODO: crear los filtros segun necesidad
-  //NOTA: cuidado al establecer el tamaño del filtro a utilizar
+  //NOTA: cuidado al establecer el tamaÃ±o del filtro a utilizar
 
-  //const int KernelWidth = 3; //OJO CON EL TAMAÑO DEL FILTRO//
+  //const int KernelWidth = 3;
   //*filterWidth = KernelWidth;
 
   ////create and fill the filter we will convolve with
   //*h_filter = new float[KernelWidth * KernelWidth];
  
-  // Detección de línea horizontal 3x3
-  /*(*h_filter)[0] = -1.; (*h_filter)[1] = -1.; (*h_filter)[2] = -1.;
-  (*h_filter)[3] = 2.;  (*h_filter)[4] = 2.;  (*h_filter)[5] = 2.;
-  (*h_filter)[6] = -1.; (*h_filter)[7] = -1.; (*h_filter)[8] = -1.;*/
+  //// DetecciÃ³n de lÃ­nea horizontal 3x3
+  //(*h_filter)[0] = -1.; (*h_filter)[1] = -1.; (*h_filter)[2] = -1.;
+  //(*h_filter)[3] = 2.;  (*h_filter)[4] = 2.;  (*h_filter)[5] = 2.;
+  //(*h_filter)[6] = -1.; (*h_filter)[7] = -1.; (*h_filter)[8] = -1.;
 
-  // Nitidez 3x3
+  //// Nitidez 3x3
   /*(*h_filter)[0] = 0; (*h_filter)[1] = -0.25; (*h_filter)[2] = 0;
   (*h_filter)[3] = -0.25;  (*h_filter)[4] = 2.;  (*h_filter)[5] = -0.25;
   (*h_filter)[6] = 0; (*h_filter)[7] = -0.25; (*h_filter)[8] = 0;*/
 
-  // Nitidez_2 3x3
+  //// Nitidez_2 3x3
   /*(*h_filter)[0] = -0.25; (*h_filter)[1] = -0.25; (*h_filter)[2] = -0.25;
   (*h_filter)[3] = -0.25;  (*h_filter)[4] = 3.;  (*h_filter)[5] = -0.25;
   (*h_filter)[6] = -0.25; (*h_filter)[7] = -0.25; (*h_filter)[8] = -0.25;*/
 
-  // Suavizado 3x3
+  //// Suavizado 3x3
   /*(*h_filter)[0] = 0.1; (*h_filter)[1] = 0.1; (*h_filter)[2] = 0.1;
   (*h_filter)[3] = 0.1;  (*h_filter)[4] = 0.1;  (*h_filter)[5] = 0.1;
   (*h_filter)[6] = 0.1; (*h_filter)[7] = 0.1; (*h_filter)[8] = 0.1;*/
@@ -263,15 +262,16 @@ void convolution(const uchar4 * const h_inputImageRGBA, uchar4 * const d_inputIm
                         unsigned char *d_blueFiltered,
                         const int filterWidth)
 {
-  //TODO: Calcular tamaños de bloque
-  const dim3 blockSize(32, 32, 1);
-  const dim3 gridSize((numCols - 1)/32 + 1, (numRows - 1)/32 + 1, 1);
+
+  
+  const dim3 blockSize(16, 16, 1);
+  const dim3 gridSize((numCols - 1)/blockSize.x + 1, (numRows - 1)/blockSize.y + 1, 1);
 
   //TODO: Lanzar kernel para separar imagenes RGBA en diferentes colores
   separateChannels <<<gridSize, blockSize>>> (d_inputImageRGBA, numRows, numCols, 
       d_red, d_green, d_blue);
 
-  //TODO: Ejecutar convolución. Una por canal
+  //TODO: Ejecutar convoluciÃ³n. Una por canal
   box_filter <<<gridSize, blockSize>>> (d_red, d_redFiltered, numRows, numCols, d_filter, filterWidth);
   box_filter <<<gridSize, blockSize>>> (d_green, d_greenFiltered, numRows, numCols, d_filter, filterWidth);
   box_filter <<<gridSize, blockSize>>> (d_blue, d_blueFiltered, numRows, numCols, d_filter, filterWidth);
@@ -294,4 +294,5 @@ void cleanup() {
   checkCudaErrors(cudaFree(d_red));
   checkCudaErrors(cudaFree(d_green));
   checkCudaErrors(cudaFree(d_blue));
+  checkCudaErrors(cudaFree(d_filter));
 }
