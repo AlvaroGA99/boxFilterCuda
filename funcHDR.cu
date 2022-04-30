@@ -138,7 +138,7 @@ void calculate_cdf(const float* const d_logLuminance,
     const dim3 blockSize(512, 1 , 1);
     const dim3 gridSize((numCols*numRows - 1) / blockSize.x + 1, 1, 1);
 
-    const dim3 gridSizeReduce((numCols * numRows - 1) / (blockSize.x*2) + 1, 1, 1);
+    const dim3 gridSizeReduce(((numCols * numRows)/2 - 1) / blockSize.x + 1, 1, 1);
   /* TODO
     1) Encontrar el valor máximo y mínimo de luminancia en min_logLum and max_logLum a partir del canal logLuminance 
 
